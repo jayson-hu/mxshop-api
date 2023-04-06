@@ -147,6 +147,14 @@ func PasswordLogin(c *gin.Context) {
 		HandleValidatorError(c, err)
 		return
 	}
+	//进行验证码的验证
+	if !store.Verify(passwordLoginForm.CaptchaId, passwordLoginForm.Captcha, true) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"captcha": "验证码错误",
+		})
+		return
+	}
+
 	// 验证成功后的返回
 	//拨号连接服务器
 	//userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", ip, port), grpc.WithInsecure())
