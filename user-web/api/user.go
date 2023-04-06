@@ -3,7 +3,10 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/go-playground/validator/v10"
+	"github.com/jayson-hu/mxshop-api/user-web/middlewares"
+	"github.com/jayson-hu/mxshop-api/user-web/models"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,7 +31,7 @@ func RemoveTopStruct(filds map[string]string) map[string]string {
 		//fmt.Println("333")
 		//fmt.Println(filed, err)
 		//fmt.Println("ddd333remove",strings.Index(filed, "." ))
-		resp[filed[strings.Index(filed, "." )+1:]] = err
+		resp[filed[strings.Index(filed, ".")+1:]] = err
 	}
 	return resp
 }
@@ -67,7 +70,7 @@ func HandleGrpcErrorToHttp(err error, c *gin.Context) {
 
 }
 
-func HandleValidatorError(c *gin.Context, err error)  {
+func HandleValidatorError(c *gin.Context, err error) {
 	errInfo, ok := err.(validator.ValidationErrors)
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{
@@ -83,7 +86,6 @@ func HandleValidatorError(c *gin.Context, err error)  {
 
 }
 
-
 func GetUserList(ctx *gin.Context) {
 	//ip := "127.0.0.1"
 	//port := 50051
@@ -94,6 +96,11 @@ func GetUserList(ctx *gin.Context) {
 	if err != nil {
 		zap.S().Errorw("[GetUserList] 连接用户服务失败", "msg:", err.Error())
 	}
+	claims, _ := ctx.Get("claims")
+	currentUser := claims.(*models.CustomClaims)
+	zap.S().Infof("访问用户: %d", currentUser.ID)
+
+	//生成grpc的client并调用借口
 	userSrvClient := proto.NewUserClient(userConn)
 	pn := ctx.DefaultQuery("pn", "0")
 	pSize := ctx.DefaultQuery("psize", "10")
@@ -157,34 +164,57 @@ func PasswordLogin(c *gin.Context) {
 			switch e.Code() {
 			case codes.NotFound:
 				c.JSON(http.StatusBadRequest, map[string]string{
-				"mobile": "用户不存在",
+					"mobile": "用户不存在",
 				})
 			default:
+				zap.S().Infof("登录失败: %s", err.Error())
 				c.JSON(http.StatusInternalServerError, map[string]string{
-				"mobile": "登录失败",
+					"mobile": "登录失败1",
 				})
 			}
 			return
 		}
-	}else {
+	} else {
 		//只是查询到了用户而已， 并没有检查密码
 		if passRsp, passErr := userSrvClient.CheckPassword(context.Background(), &proto.PasswordCheckInfo{
 			Password:          passwordLoginForm.Password,
 			EncryptedPassword: rsp.Password,
 		}); passErr != nil {
 			c.JSON(http.StatusInternalServerError, map[string]string{
-				"password":"登录失败",
+				"password": "登录失败2",
 			})
 			return
-		}else {
+		} else {
 			//验证密码返回是否为success true 或者是false
 			if passRsp.Success {
-				c.JSON(http.StatusOK, map[string]string{
-					"message":"登录成功",
+				//生成token
+				j := middlewares.NewJWT()
+				claims := models.CustomClaims{
+					ID:          uint(rsp.Id),
+					NickName:    rsp.NickName,
+					AuthorityId: uint(rsp.Role),
+					StandardClaims: jwt.StandardClaims{
+						NotBefore: time.Now().Unix(),               //签名的生效时间
+						ExpiresAt: time.Now().Unix() + 60*60*24*30, //30天过期
+						Issuer:    "user-web",
+					},
+				}
+				token, err := j.CreateToken(claims)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, map[string]string{
+						"message": "生成token失败",
+					})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"id":         rsp.Id,
+					"nick_name":  rsp.NickName,
+					"token":      token,
+					"expired_at": (time.Now().Unix() + 60*60*24*30) * 1000,
 				})
-			}else {
+			} else {
 				c.JSON(http.StatusOK, map[string]string{
-					"message":"密码错误",
+					"message": "密码错误",
 				})
 			}
 		}
