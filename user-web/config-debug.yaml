@@ -5,3 +5,6 @@ user-srv:
   port: 50051
 jwt:
   key: "xOzrYmi0VQZBRYNUkrw7JF+ZYd5y8cPFDIvHlJbE9WoXuA6GKgqL2MfCbh1ptsTS"
+consul:
+  host: "150.158.11.116"
+  port: 8500

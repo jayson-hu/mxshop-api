@@ -2,25 +2,23 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/go-playground/validator/v10"
-	"github.com/jayson-hu/mxshop-api/user-web/middlewares"
-	"github.com/jayson-hu/mxshop-api/user-web/models"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/jayson-hu/mxshop-api/user-web/forms"
 	"github.com/jayson-hu/mxshop-api/user-web/global"
 	"github.com/jayson-hu/mxshop-api/user-web/global/response"
+	"github.com/jayson-hu/mxshop-api/user-web/middlewares"
+	"github.com/jayson-hu/mxshop-api/user-web/models"
 	"github.com/jayson-hu/mxshop-api/user-web/proto"
 )
 
@@ -61,6 +59,8 @@ func HandleGrpcErrorToHttp(err error, c *gin.Context) {
 			default:
 				c.JSON(http.StatusInternalServerError, gin.H{
 					//"msg":"其他错误" + e.Message(),
+					//"msg": e.Code(),
+					//"msg": e.Message(),
 					"msg": e.Code(),
 				})
 			}
@@ -87,26 +87,66 @@ func HandleValidatorError(c *gin.Context, err error) {
 }
 
 func GetUserList(ctx *gin.Context) {
-	//ip := "127.0.0.1"
-	//port := 50051
+	////从注册中心获取到用户到信息，包括ip和port
+	//cfg := api.DefaultConfig()
+	////cfg.Address = "150.158.11.116:8500"
+	//consulInfo := global.ServerConfig.ConsulInfo
+	//cfg.Address = fmt.Sprintf("%s:%d", consulInfo.Host, consulInfo.Port)
+	//
+	//userSrvHost := ""
+	//userSrvPort := 0
+	//
+	//
+	//client, err := api.NewClient(cfg)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//fmt.Println("global.ServerConfig.UserSrvInfo.Name", global.ServerConfig.UserSrvInfo.Name)
+	//data, err := client.Agent().ServicesWithFilter(fmt.Sprintf(`Service == "%s"`,global.ServerConfig.UserSrvInfo.Name))
+	////data, err := client.Agent().ServicesWithFilter(`Service == "user-srv"`)
+	//if err != nil {
+	//
+	//	panic(err)
+	//}
+	//for _, value := range data {
+	//	userSrvHost = value.Address
+	//	userSrvPort = value.Port
+	//	break
+	//}
+	//if userSrvHost == ""{
+	//	ctx.JSON(http.StatusBadRequest, gin.H{
+	//		"captcha":"用户服务不可大",
+	//	})
+	//}
+	//
+	//
+	//
+	////ip := "127.0.0.1"
+	////port := 50051
+	//
+	////userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", ip, port), grpc.WithInsecure())， 拨号连接服务器
+	//fmt.Println("userSrvHost,userSrvPort",userSrvHost,userSrvPort)
+	////127.0.0.1 为userSrvHost,但是健康检查不可用，会被删除，故使用本地，写死
+	//userConn, err := grpc.Dial(fmt.Sprintf("%s:%d","127.0.0.1",userSrvPort), grpc.WithInsecure())
+	////userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", global.ServerConfig.UserSrvInfo.Host,
+	////	global.ServerConfig.UserSrvInfo.Port), grpc.WithInsecure())
+	//if err != nil {
+	//	zap.S().Errorw("[GetUserList] 连接用户服务失败", "msg:", err.Error())
+	//}
+	//生成grpc的client并调用借口
+	//userSrvClient := proto.NewUserClient(userConn)
+	//以上使用了全局的
 
-	//userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", ip, port), grpc.WithInsecure())， 拨号连接服务器
-	userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", global.ServerConfig.UserSrvInfo.Host,
-		global.ServerConfig.UserSrvInfo.Port), grpc.WithInsecure())
-	if err != nil {
-		zap.S().Errorw("[GetUserList] 连接用户服务失败", "msg:", err.Error())
-	}
+	//jwt中claim
 	claims, _ := ctx.Get("claims")
 	currentUser := claims.(*models.CustomClaims)
 	zap.S().Infof("访问用户: %d", currentUser.ID)
 
-	//生成grpc的client并调用借口
-	userSrvClient := proto.NewUserClient(userConn)
 	pn := ctx.DefaultQuery("pn", "0")
 	pSize := ctx.DefaultQuery("psize", "10")
 	pnInt, _ := strconv.Atoi(pn)
 	pSizeInt, _ := strconv.Atoi(pSize)
-	rsp, err := userSrvClient.GetUserList(context.Background(), &proto.PageInfo{
+	rsp, err := global.UserSrvClient.GetUserList(context.Background(), &proto.PageInfo{
 		Pn:    uint32(pnInt),
 		PSize: uint32(pSizeInt),
 	})
@@ -158,15 +198,16 @@ func PasswordLogin(c *gin.Context) {
 	// 验证成功后的返回
 	//拨号连接服务器
 	//userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", ip, port), grpc.WithInsecure())
-	userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", global.ServerConfig.UserSrvInfo.Host,
-		global.ServerConfig.UserSrvInfo.Port), grpc.WithInsecure())
-	if err != nil {
-		zap.S().Errorw("[GetUserList] 连接用户服务失败", "msg:", err.Error())
-	}
-	userSrvClient := proto.NewUserClient(userConn)
+	//userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", global.ServerConfig.UserSrvInfo.Host,
+	//	global.ServerConfig.UserSrvInfo.Port), grpc.WithInsecure())
+	//if err != nil {
+	//	zap.S().Errorw("[GetUserList] 连接用户服务失败", "msg:", err.Error())
+	//}
+	//userSrvClient := proto.NewUserClient(userConn)
+	//以上使用了全局的srv
 
 	//登录的逻辑
-	if rsp, err := userSrvClient.GetUserByMobile(context.Background(), &proto.MobileRequest{
+	if rsp, err := global.UserSrvClient.GetUserByMobile(context.Background(), &proto.MobileRequest{
 		Mobile: passwordLoginForm.Mobile}); err != nil {
 		if e, ok := status.FromError(err); ok {
 			switch e.Code() {
@@ -184,7 +225,7 @@ func PasswordLogin(c *gin.Context) {
 		}
 	} else {
 		//只是查询到了用户而已， 并没有检查密码
-		if passRsp, passErr := userSrvClient.CheckPassword(context.Background(), &proto.PasswordCheckInfo{
+		if passRsp, passErr := global.UserSrvClient.CheckPassword(context.Background(), &proto.PasswordCheckInfo{
 			Password:          passwordLoginForm.Password,
 			EncryptedPassword: rsp.Password,
 		}); passErr != nil {
@@ -227,4 +268,59 @@ func PasswordLogin(c *gin.Context) {
 			}
 		}
 	}
+}
+
+func Register(c *gin.Context) {
+	registerForm := forms.RegisterForm{}
+	if err := c.ShouldBind(&registerForm); err != nil {
+		HandleValidatorError(c, err)
+		return
+	}
+	//存储验证码, 省略了验证短信
+	//rdb := redis.NewClient(&redis)
+
+	//拨号连接服务器
+	//userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", ip, port), grpc.WithInsecure())
+	//userConn, err := grpc.Dial(fmt.Sprintf("%s:%d", global.ServerConfig.UserSrvInfo.Host,
+	//	global.ServerConfig.UserSrvInfo.Port), grpc.WithInsecure())
+	//if err != nil {
+	//	zap.S().Errorw("[GetUserList] 连接用户服务失败", "msg:", err.Error())
+	//}
+	//userSrvClient := proto.NewUserClient(userConn)
+	//使用了全局的usersrvclient
+	user, err := global.UserSrvClient.CreateUser(context.Background(), &proto.CreateUserInfo{
+		NickName: registerForm.Mobile,
+		Password: registerForm.Password,
+		Mobile:   registerForm.Mobile,
+	})
+	if err != nil {
+		//fmt.Println("msg, 用户失败 ", err.Error())
+		zap.S().Errorw("[Register fail ] , 新建用户失败", "msg:", err.Error())
+		HandleGrpcErrorToHttp(err, c)
+		return
+	}
+	j := middlewares.NewJWT()
+	claims := models.CustomClaims{
+		ID:          uint(user.Id),
+		NickName:    user.NickName,
+		AuthorityId: uint(user.Role),
+		StandardClaims: jwt.StandardClaims{
+			NotBefore: time.Now().Unix(),               //签名的生效时间
+			ExpiresAt: time.Now().Unix() + 60*60*24*30, //30天过期
+			Issuer:    "user-web",
+		},
+	}
+	token, err := j.CreateToken(claims)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, map[string]string{
+			"message": "生成token失败",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":         user.Id,
+		"nick_name":  user.NickName,
+		"token":      token,
+		"expired_at": (time.Now().Unix() + 60*60*24*30) * 1000,
+	})
 }
