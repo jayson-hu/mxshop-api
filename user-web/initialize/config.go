@@ -16,12 +16,12 @@ func GetEnvInfo(env string) bool {
 
 }
 func InitConfig() {
-	debug := GetEnvInfo("MXSHOP_DEBUG")
+	//debug := GetEnvInfo("MXSHOP_DEBUG")
 	configFilePrefix := "config"
 	configFileName := fmt.Sprintf("user-web/%s-pro.yaml", configFilePrefix)
-	if debug {
-		configFileName = fmt.Sprintf("user-web/%s-debug.yaml", configFilePrefix)
-	}
+	//if debug {
+	//	configFileName = fmt.Sprintf("user-web/%s-debug.yaml", configFilePrefix)
+	//}
 	v := viper.New()
 	v.SetConfigFile(configFileName)
 	if err := v.ReadInConfig(); err != nil {

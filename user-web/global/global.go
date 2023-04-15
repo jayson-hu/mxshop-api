@@ -2,6 +2,7 @@ package global
 
 import (
 	ut "github.com/go-playground/universal-translator"
+
 	"github.com/jayson-hu/mxshop-api/user-web/config"
 	"github.com/jayson-hu/mxshop-api/user-web/proto"
 )
